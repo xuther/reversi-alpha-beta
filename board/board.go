@@ -83,38 +83,78 @@ func (b *Board) StartGame() {
 
 	invalidFormat := "Invalid format, input move coords x y"
 	invalidOpeningMove := "Invalid move, moves must be in the central four squares"
+	invalidMove := "Invalid move, moves must flip at least one stone"
 
 	//first four turns must me taken in the middle squares
 	var x int
 	var y int
-	for i := 0; i < 4; i++ {
-		b.redraw()
-		for {
-			move, _ := reader.ReadString('\n')
-			fmt.Printf("Validating input")
-			x, y, err := validateInput(move)
-			if err != nil {
-				tm.MoveCursorUp(1)
-				tm.ResetLine(invalidFormat)
-				continue
-			}
-			fmt.Printf("done")
+	var err error
+	b.redraw()
 
-			if !b.validMove(x, y, b.Turn) {
+	hasFailed := false
+	for {
+		if b.TurnCount > 4 && !b.CanPlay(b.Turn) {
+			b.nextTurn()
+			if !b.CanPlay(b.Turn) {
+				//the game is over!
 				tm.MoveCursorUp(1)
-				tm.ResetLine(invalidOpeningMove)
-				continue
+				tm.ResetLine("")
+				tm.Println("Game over!")
+				//calculate winner
+				tm.Flush()
+				return
+			} else {
+				tm.Println("No valid moves for player, skipping turn")
+				tm.Flush()
 			}
-			fmt.Printf("Making move %v, %v", x, y)
-			break
 		}
+
+		move, _ := reader.ReadString('\n')
+		x, y, err = validateInput(move)
+		if err != nil {
+			if hasFailed {
+				tm.ResetLine("")
+				tm.MoveCursorUp(1)
+				tm.ResetLine("")
+				tm.MoveCursorUp(2)
+			} else {
+				tm.MoveCursorUp(1)
+			}
+			tm.ResetLine("")
+			tm.Println(invalidFormat)
+			tm.Flush()
+			hasFailed = true
+			continue
+		}
+		if !b.validMove(x, y, b.Turn) {
+			if hasFailed {
+				tm.ResetLine("")
+				tm.MoveCursorUp(1)
+				tm.ResetLine("")
+				tm.MoveCursorUp(2)
+			} else {
+				tm.MoveCursorUp(1)
+			}
+			tm.ResetLine("")
+			if b.TurnCount < 4 {
+				tm.Println(invalidOpeningMove)
+			} else {
+				tm.Println(invalidMove)
+			}
+			tm.Flush()
+			hasFailed = true
+			continue
+		}
+		hasFailed = false
 		b.PlacePiece(x, y, b.Turn)
 		b.nextTurn()
+		b.redraw()
 	}
 }
 
 func (b *Board) nextTurn() {
 	b.Turn = ((b.Turn % 2) + 1)
+	b.TurnCount++
 }
 
 func validateInput(move string) (int, int, error) {
@@ -125,6 +165,7 @@ func validateInput(move string) (int, int, error) {
 	}
 	//check to make sure the move is in the middle of the board
 	moves := strings.Split(move, " ")
+
 	if len(moves) != 2 {
 		return 0, 0, errors.New("Invalid Input")
 	}
@@ -154,7 +195,20 @@ func (b *Board) validMove(x int, y int, player int) bool {
 		//it's a valid move
 		return true
 	}
-	return true
+
+	if b.Board[y][x] != Clear {
+		return false
+	}
+
+	//need to validate that the move results in a piece being captured
+	for k := 0; k < 8; k++ {
+		depth, ok := b.checkNext(0, k, x, y, player, false, true)
+		if ok && depth > 0 {
+			//it's a valid move
+			return true
+		}
+	}
+	return false
 
 }
 
@@ -176,7 +230,7 @@ func (b *Board) PlacePiece(x int, y int, player int) error {
 	b.Board[y][x] = player
 
 	for i := 0; i < 8; i++ {
-		b.checkNext(0, i, x, y, player, true)
+		b.checkNext(0, i, x, y, player, true, true)
 	}
 	b.DrawBoard()
 
@@ -195,11 +249,9 @@ func (b *Board) CanPlay(player int) bool {
 			if b.Board[i][j] != player {
 				continue
 			}
-			log.Printf("Checking %v, %v for player %v", i, j, player)
 
 			for k := 0; k < 8; k++ {
-				depth, ok := b.checkNext(0, k, i, j, player, false)
-				log.Printf("Direction %v returned depth: %v and %v", k, depth, ok)
+				depth, ok := b.checkNext(0, k, i, j, player, false, false)
 				if ok && depth > 0 {
 					return true
 				}
@@ -215,7 +267,7 @@ func (b *Board) CanPlay(player int) bool {
 // c) a piece of the same player
 //the function that will recursively check the next piece in the line
 
-func (b *Board) checkNext(depth int, dir int, curX int, curY int, player int, flip bool) (int, bool) {
+func (b *Board) checkNext(depth int, dir int, curX int, curY int, player int, flip bool, real bool) (int, bool) {
 	if player != White && player != Black {
 		return depth, false
 	}
@@ -255,7 +307,7 @@ func (b *Board) checkNext(depth int, dir int, curX int, curY int, player int, fl
 
 	//we hit a clear space
 	if b.Board[nextY][nextX] == Clear {
-		if flip {
+		if flip || real {
 			return depth, false
 		}
 		//we're just checking to see if we can play, we can, since there's a blank space
@@ -263,7 +315,7 @@ func (b *Board) checkNext(depth int, dir int, curX int, curY int, player int, fl
 	}
 
 	if b.Board[nextY][nextX] == player {
-		if !flip {
+		if !flip && !real {
 			return depth, false
 
 		}
@@ -272,7 +324,7 @@ func (b *Board) checkNext(depth int, dir int, curX int, curY int, player int, fl
 	}
 	depth += 1
 
-	d, val := b.checkNext(depth, dir, nextX, nextY, player, flip)
+	d, val := b.checkNext(depth, dir, nextX, nextY, player, flip, real)
 
 	if val {
 		if flip {
@@ -292,7 +344,6 @@ func (b *Board) DrawBoard() {
 	for i := 0; i < b.Size; i++ {
 		str += "%v\t"
 		vals[i] = i - 1
-		fmt.Printf("%s", i)
 	}
 
 	str += "%v\n"
