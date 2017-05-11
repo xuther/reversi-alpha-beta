@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	tm "github.com/buger/goterm"
 )
@@ -14,7 +15,7 @@ import (
 type Board struct {
 	Size        int
 	Board       [][]int
-	Turn        bool
+	Turn        int
 	TurnCount   int
 	initialized bool
 }
@@ -33,6 +34,11 @@ const W = 6
 const NW = 7
 
 func InitializeBoard(size int) Board {
+	if size%2 != 0 {
+		fmt.Printf("Board must be an even size")
+		return Board{}
+	}
+
 	b := make([][]int, size)
 	for i := range b {
 		b[i] = make([]int, size)
@@ -40,32 +46,116 @@ func InitializeBoard(size int) Board {
 	return Board{
 		Size:        size,
 		Board:       b,
-		Turn:        false,
+		Turn:        1,
 		TurnCount:   0,
 		initialized: true,
 	}
+}
+
+func (b *Board) drawPrompt() {
+	ix := 0
+	iy := b.Size + 4
+
+	tm.MoveCursor(iy, ix)
+
+	bPrompt := "Black's Move: input move coords x y"
+	wPrompt := "Whites's Move: input move coords x y"
+
+	movePrompts := []string{bPrompt, wPrompt}
+	if b.TurnCount < 4 {
+		tm.Printf("First moves must be in the central squares of the board.\n")
+	}
+	tm.Printf(movePrompts[b.Turn-1])
+	tm.Flush()
+}
+
+func (b *Board) redraw() {
+	tm.Clear()
+	b.DrawBoard()
+	b.drawPrompt()
 }
 
 func (b *Board) StartGame() {
 	if !b.initialized {
 		log.Fatal("Board not net initialized")
 	}
-	tm.Clear()
 	reader := bufio.NewReader(os.Stdin)
-	b.DrawBoard()
 
-	ix := 0
-	iy := b.Size + 4
+	invalidFormat := "Invalid format, input move coords x y"
+	invalidOpeningMove := "Invalid move, moves must be in the central four squares"
 
-	tm.MoveCursor(iy, ix)
+	//first four turns must me taken in the middle squares
+	var x int
+	var y int
+	for i := 0; i < 4; i++ {
+		b.redraw()
+		for {
+			move, _ := reader.ReadString('\n')
+			fmt.Printf("Validating input")
+			x, y, err := validateInput(move)
+			if err != nil {
+				tm.MoveCursorUp(1)
+				tm.ResetLine(invalidFormat)
+				continue
+			}
+			fmt.Printf("done")
 
-	tm.Printf("inpu")
-	tm.MoveCursorUp(1)
-	tm.Flush()
+			if !b.validMove(x, y, b.Turn) {
+				tm.MoveCursorUp(1)
+				tm.ResetLine(invalidOpeningMove)
+				continue
+			}
+			fmt.Printf("Making move %v, %v", x, y)
+			break
+		}
+		b.PlacePiece(x, y, b.Turn)
+		b.nextTurn()
+	}
+}
 
-	text, _ := reader.ReadString('\n')
-	tm.ResetLine(text)
-	tm.Flush()
+func (b *Board) nextTurn() {
+	b.Turn = ((b.Turn % 2) + 1)
+}
+
+func validateInput(move string) (int, int, error) {
+
+	move = strings.TrimSpace(move)
+	if len(move) > 3 {
+		return 0, 0, errors.New("Invalid Input")
+	}
+	//check to make sure the move is in the middle of the board
+	moves := strings.Split(move, " ")
+	if len(moves) != 2 {
+		return 0, 0, errors.New("Invalid Input")
+	}
+
+	x, err := strconv.Atoi(moves[0])
+	if err != nil {
+		return 0, 0, errors.New("Invalid Input")
+	}
+	y, err := strconv.Atoi(moves[1])
+	if err != nil {
+		return 0, 0, errors.New("Invalid Input")
+	}
+
+	return x, y, nil
+
+}
+
+func (b *Board) validMove(x int, y int, player int) bool {
+	if b.TurnCount < 4 {
+		midpoint := b.Size / 2
+		if x < midpoint-1 || x > midpoint || y < midpoint-1 || x > midpoint {
+			return false
+		}
+		if b.Board[y][x] != Clear {
+			return false
+		}
+		//it's a valid move
+		return true
+	}
+	return true
+
 }
 
 //PlacePice places a piece in that 0-indexed location on the board

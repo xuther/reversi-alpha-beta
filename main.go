@@ -28,6 +28,6 @@ func main() {
 	log.Printf("White can play: %v", b.CanPlay(board.White))
 	log.Printf("Piece Placed")
 
-	b = board.InitializeBoard(11)
+	b = board.InitializeBoard(12)
 	b.StartGame()
 }
