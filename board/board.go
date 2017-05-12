@@ -20,6 +20,8 @@ type Board struct {
 	initialized bool
 }
 
+const debug = true
+
 const White = 2
 const Black = 1
 const Clear = 0
@@ -75,7 +77,39 @@ func (b *Board) redraw() {
 	b.drawPrompt()
 }
 
-func (b *Board) StartGame() {
+func (b *Board) CalculateScore() map[int]int {
+	scores := make(map[int]int)
+
+	scores[White] = 0
+	scores[Black] = 0
+
+	for i := 0; i < b.Size; i++ {
+		for j := 0; j < b.Size; j++ {
+			switch b.Board[i][j] {
+			case White:
+				scores[White]++
+			case Black:
+				scores[Black]++
+			}
+		}
+	}
+	return scores
+}
+
+func (b *Board) CalculateWinner() int {
+	scores := b.CalculateScore()
+	if scores[White] < scores[Black] {
+		return Black
+	} else if scores[White] > scores[Black] {
+		return White
+	} else {
+		return Clear
+	}
+
+}
+
+//if apiplayer = 1 goes first 2 goes second 0 no ai player 3 two ai's play eachother
+func (b *Board) StartGame(aiplayer int) {
 	if !b.initialized {
 		log.Fatal("Board not net initialized")
 	}
@@ -84,6 +118,9 @@ func (b *Board) StartGame() {
 	invalidFormat := "Invalid format, input move coords x y"
 	invalidOpeningMove := "Invalid move, moves must be in the central four squares"
 	invalidMove := "Invalid move, moves must flip at least one stone"
+	whiteWin := "White Wins!"
+	blackWin := "Black Wins!"
+	tie := "It was a tie."
 
 	//first four turns must me taken in the middle squares
 	var x int
@@ -94,13 +131,23 @@ func (b *Board) StartGame() {
 	hasFailed := false
 	for {
 		if b.TurnCount > 4 && !b.CanPlay(b.Turn) {
-			b.nextTurn()
+			b.NextTurn()
 			if !b.CanPlay(b.Turn) {
 				//the game is over!
 				tm.MoveCursorUp(1)
-				tm.ResetLine("")
+				tm.ResetLine("\t\t\t\t\t")
 				tm.Println("Game over!")
 				//calculate winner
+				winner := b.CalculateWinner()
+				switch winner {
+				case White:
+					tm.Println(whiteWin)
+				case Black:
+					tm.Println(blackWin)
+				case Clear:
+					tm.Println(tie)
+				}
+
 				tm.Flush()
 				return
 			} else {
@@ -126,7 +173,7 @@ func (b *Board) StartGame() {
 			hasFailed = true
 			continue
 		}
-		if !b.validMove(x, y, b.Turn) {
+		if !b.ValidMove(x, y, b.Turn) {
 			if hasFailed {
 				tm.ResetLine("")
 				tm.MoveCursorUp(1)
@@ -146,13 +193,13 @@ func (b *Board) StartGame() {
 			continue
 		}
 		hasFailed = false
-		b.PlacePiece(x, y, b.Turn)
-		b.nextTurn()
+		b.PlacePiece(x, y, b.Turn, false)
+		b.NextTurn()
 		b.redraw()
 	}
 }
 
-func (b *Board) nextTurn() {
+func (b *Board) NextTurn() {
 	b.Turn = ((b.Turn % 2) + 1)
 	b.TurnCount++
 }
@@ -183,10 +230,10 @@ func validateInput(move string) (int, int, error) {
 
 }
 
-func (b *Board) validMove(x int, y int, player int) bool {
+func (b *Board) ValidMove(x int, y int, player int) bool {
 	if b.TurnCount < 4 {
 		midpoint := b.Size / 2
-		if x < midpoint-1 || x > midpoint || y < midpoint-1 || x > midpoint {
+		if x < midpoint-1 || x > midpoint || y < midpoint-1 || y > midpoint {
 			return false
 		}
 		if b.Board[y][x] != Clear {
@@ -214,7 +261,7 @@ func (b *Board) validMove(x int, y int, player int) bool {
 
 //PlacePice places a piece in that 0-indexed location on the board
 //
-func (b *Board) PlacePiece(x int, y int, player int) error {
+func (b *Board) PlacePiece(x int, y int, player int, draw bool) error {
 
 	//make sure that it's a valid player
 	if player != White && player != Black {
@@ -232,10 +279,29 @@ func (b *Board) PlacePiece(x int, y int, player int) error {
 	for i := 0; i < 8; i++ {
 		b.checkNext(0, i, x, y, player, true, true)
 	}
-	b.DrawBoard()
+	if draw {
+		b.DrawBoard()
+	}
 
 	return nil
 
+}
+
+func (b *Board) Copy() Board {
+	newBoard := make([][]int, b.Size)
+
+	for i := range newBoard {
+		newBoard[i] = make([]int, b.Size)
+		copy(newBoard[i], b.Board[i])
+	}
+
+	return Board{
+		Size:        b.Size,
+		Board:       newBoard,
+		Turn:        b.Turn,
+		TurnCount:   b.TurnCount,
+		initialized: b.initialized,
+	}
 }
 
 /*
@@ -244,21 +310,44 @@ CanPlay returns if a player is able to place a stone to flip an opponents piece
 func (b *Board) CanPlay(player int) bool {
 	//search each field on board, check if has adjacent tile of another color, if so, follow it to see if it has another of the players stones on the other side.
 
+	//if the first four moves of the game, just return true
+	if b.TurnCount < 4 {
+		return true
+	}
+
 	for i := 0; i < b.Size; i++ {
 		for j := 0; j < b.Size; j++ {
-			if b.Board[i][j] != player {
-				continue
+			if debug {
+				log.Printf("Validating move: %v-%v", i, j)
 			}
-
-			for k := 0; k < 8; k++ {
-				depth, ok := b.checkNext(0, k, i, j, player, false, false)
-				if ok && depth > 0 {
-					return true
-				}
+			if b.ValidMove(i, j, player) {
+				return true
 			}
 		}
 	}
 	return false
+}
+
+//returns an array of move pairs [x,y] representing valid moves
+func (b *Board) GetAllPossibleMoves(player int) [][]int {
+	if debug {
+		log.Printf("Getting all possible moves for player %v", player)
+	}
+	moves := [][]int{}
+
+	for i := 0; i < b.Size; i++ {
+		for j := 0; j < b.Size; j++ {
+			if b.ValidMove(i, j, player) {
+				moves = append(moves, []int{i, j})
+			}
+		}
+	}
+	if debug {
+		log.Printf("%v moves found", len(moves))
+		log.Printf("%+v", moves)
+	}
+
+	return moves
 }
 
 //we need to check in lines from the piece being played in all 8 directions until we hit either
@@ -359,6 +448,31 @@ func (b *Board) DrawBoard() {
 
 	tm.Println(board)
 	tm.Flush()
+}
+
+func (b *Board) PrintBoard() {
+	vals := make([]interface{}, b.Size+1)
+
+	str := ""
+	for i := 0; i < b.Size; i++ {
+		str += "%v\t"
+		vals[i] = i - 1
+	}
+
+	str += "%v\n"
+	vals[0] = " "
+	vals[b.Size] = b.Size - 1
+
+	board := tm.NewTable(0, 1, 1, ' ', 0)
+
+	fmt.Fprintf(board, str, vals...)
+	for i := 0; i < b.Size; i++ {
+		fmt.Fprintf(board, b.genBoardStrings(i))
+	}
+
+	tm.Println(board)
+	tm.Flush()
+
 }
 
 func (b *Board) genBoardStrings(row int) string {
