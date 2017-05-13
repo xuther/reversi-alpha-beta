@@ -28,8 +28,24 @@ func GetNextMove(b Board) []int {
 	}
 
 	// set search depth based on number of available moves and free spaces
+	moves := len(b.GetAllPossibleMoves())
+	openSpaces := b.getOpenSpaces() // how many open spaces are there
 
-	utility, path := ab.Search(Root, 8, -1000, 1000)
+	//some function
+
+	val := moves*2 + (openSpaces / 4)
+	searchDepth := 8
+	if val > 20 {
+		searchDepth = 7
+	}
+	if val > 25 {
+		searchDepth = 6
+	}
+	if val > 30 {
+		searchDepth = 5
+	}
+
+	utility, path := ab.Search(Root, searchDepth, -1000, 1000)
 
 	log.Printf("NextTurn: Utility: %v, Path: %v", utility, path)
 
@@ -41,7 +57,36 @@ func GetNextMove(b Board) []int {
 
 func (r ReversiNode) GetUtility() int {
 	score := r.b.CalculateScore()
-	return score[r.maximizingFor] - score[(r.maximizingFor%2)+1]
+
+	baseScore := score[r.maximizingFor] - score[(r.maximizingFor%2)+1]
+
+	max := r.b.Size - 1
+
+	addedScore := 0
+
+	//add value for corner/edge pieces
+	for i := 0; i < r.b.Size; i++ {
+		for j := 0; j < r.b.Size; j++ {
+			if r.b.Board[i][j] == 0 {
+				continue
+			}
+
+			val := 0
+			if (i == 0 || i == max) && (j == 0 || j == max) {
+				val = 7 // add an extra 7 points for corners
+			} else if i == 0 || j == 0 || j == max || i == max {
+				val = 2 // add an exta 2 points for edges
+			}
+
+			if r.b.Board[i][j] == r.maximizingFor {
+				addedScore += val
+			} else {
+				addedScore += (val * -1)
+			}
+		}
+	}
+
+	return baseScore + addedScore
 }
 
 func (r ReversiNode) Branch() []ab.Node {

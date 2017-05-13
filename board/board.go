@@ -54,6 +54,20 @@ func InitializeBoard(size int) Board {
 	}
 }
 
+func (b *Board) getOpenSpaces() int {
+	count := 0
+
+	for i := 0; i < b.Size; i++ {
+		for j := 0; j < b.Size; j++ {
+			if b.Board[i][j] == 0 {
+				count++
+			}
+		}
+	}
+
+	return count
+}
+
 func (b *Board) drawPrompt() {
 	ix := 0
 	iy := b.Size + 4
