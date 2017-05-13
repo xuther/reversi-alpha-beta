@@ -200,7 +200,11 @@ func (b *Board) StartGame(aiplayer int) {
 }
 
 func (b *Board) NextTurn() {
-	b.Turn = ((b.Turn % 2) + 1)
+	if b.CanPlay((b.Turn % 2) + 1) {
+		b.Turn = ((b.Turn % 2) + 1)
+	} else {
+		log.Printf("%v can't play", b.Turn%2+1)
+	}
 	b.TurnCount++
 }
 
@@ -317,9 +321,6 @@ func (b *Board) CanPlay(player int) bool {
 
 	for i := 0; i < b.Size; i++ {
 		for j := 0; j < b.Size; j++ {
-			if debug {
-				log.Printf("Validating move: %v-%v", i, j)
-			}
 			if b.ValidMove(i, j, player) {
 				return true
 			}
@@ -329,22 +330,15 @@ func (b *Board) CanPlay(player int) bool {
 }
 
 //returns an array of move pairs [x,y] representing valid moves
-func (b *Board) GetAllPossibleMoves(player int) [][]int {
-	if debug {
-		log.Printf("Getting all possible moves for player %v", player)
-	}
+func (b *Board) GetAllPossibleMoves() [][]int {
 	moves := [][]int{}
 
 	for i := 0; i < b.Size; i++ {
 		for j := 0; j < b.Size; j++ {
-			if b.ValidMove(i, j, player) {
+			if b.ValidMove(i, j, b.Turn) {
 				moves = append(moves, []int{i, j})
 			}
 		}
-	}
-	if debug {
-		log.Printf("%v moves found", len(moves))
-		log.Printf("%+v", moves)
 	}
 
 	return moves

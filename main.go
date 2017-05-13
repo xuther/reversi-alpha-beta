@@ -15,7 +15,7 @@ func main() {
 	log.SetOutput(f)
 	defer f.Close()
 
-	boardA()
+	boardC()
 }
 
 func boardC() {
