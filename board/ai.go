@@ -1,21 +1,42 @@
-package ai
+package board
 
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/xuther/reversi-alpha-beta/ab"
-	"github.com/xuther/reversi-alpha-beta/board"
 )
 
 //here's where we hook into the AI using the AB package
 
 type ReversiNode struct {
-	b             board.Board
+	b             Board
 	madeTurn      int
 	movex         int //this makes up part of the id
 	movey         int //this makes up part of the id
 	maximizingFor int
+}
+
+func GetNextMove(b Board) []int {
+	log.Printf("Getting next turn for %v", b.Turn)
+
+	Root := ReversiNode{
+		b:             b,
+		maximizingFor: b.Turn,
+	}
+
+	// set search depth based on number of available moves and free spaces
+
+	utility, path := ab.Search(Root, 8, -1000, 1000)
+
+	log.Printf("NextTurn: Utility: %v, Path: %v", utility, path)
+
+	vals := strings.Split(path[len(path)-2], ",") //the last one in the path corresponds to the root node
+	x, _ := strconv.Atoi(vals[1])
+	y, _ := strconv.Atoi(vals[2])
+	return []int{x, y}
 }
 
 func (r ReversiNode) GetUtility() int {

@@ -155,44 +155,50 @@ func (b *Board) StartGame(aiplayer int) {
 				tm.Flush()
 			}
 		}
+		if b.Turn == aiplayer || aiplayer == 3 {
+			move := GetNextMove(*b)
+			x = move[0]
+			y = move[1]
+		} else {
+			move, _ := reader.ReadString('\n')
 
-		move, _ := reader.ReadString('\n')
-		x, y, err = validateInput(move)
-		if err != nil {
-			if hasFailed {
+			x, y, err = validateInput(move)
+			if err != nil {
+				if hasFailed {
+					tm.ResetLine("")
+					tm.MoveCursorUp(1)
+					tm.ResetLine("")
+					tm.MoveCursorUp(2)
+				} else {
+					tm.MoveCursorUp(1)
+				}
 				tm.ResetLine("")
-				tm.MoveCursorUp(1)
-				tm.ResetLine("")
-				tm.MoveCursorUp(2)
-			} else {
-				tm.MoveCursorUp(1)
+				tm.Println(invalidFormat)
+				tm.Flush()
+				hasFailed = true
+				continue
 			}
-			tm.ResetLine("")
-			tm.Println(invalidFormat)
-			tm.Flush()
-			hasFailed = true
-			continue
+			if !b.ValidMove(x, y, b.Turn) {
+				if hasFailed {
+					tm.ResetLine("")
+					tm.MoveCursorUp(1)
+					tm.ResetLine("")
+					tm.MoveCursorUp(2)
+				} else {
+					tm.MoveCursorUp(1)
+				}
+				tm.ResetLine("")
+				if b.TurnCount < 4 {
+					tm.Println(invalidOpeningMove)
+				} else {
+					tm.Println(invalidMove)
+				}
+				tm.Flush()
+				hasFailed = true
+				continue
+			}
+			hasFailed = false
 		}
-		if !b.ValidMove(x, y, b.Turn) {
-			if hasFailed {
-				tm.ResetLine("")
-				tm.MoveCursorUp(1)
-				tm.ResetLine("")
-				tm.MoveCursorUp(2)
-			} else {
-				tm.MoveCursorUp(1)
-			}
-			tm.ResetLine("")
-			if b.TurnCount < 4 {
-				tm.Println(invalidOpeningMove)
-			} else {
-				tm.Println(invalidMove)
-			}
-			tm.Flush()
-			hasFailed = true
-			continue
-		}
-		hasFailed = false
 		b.PlacePiece(x, y, b.Turn, false)
 		b.NextTurn()
 		b.redraw()

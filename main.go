@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 
 	tm "github.com/buger/goterm"
-	"github.com/xuther/reversi-alpha-beta/ai"
 	"github.com/xuther/reversi-alpha-beta/board"
 )
 
@@ -15,55 +17,39 @@ func main() {
 	log.SetOutput(f)
 	defer f.Close()
 
-	boardC()
+	start()
 }
 
-func boardC() {
-	b := board.InitializeBoard(4)
+func start() {
 	tm.Clear()
-	b.Turn = 1
+	tm.Println("Select Game type:")
+	tm.Println("0 - Play against another player (hotseat)")
+	tm.Println("1 - Play against an AI (AI goes first)")
+	tm.Println("2 - Play against an AI (AI goes Second)")
+	tm.Println("3 - Watch an AI Game")
+	tm.Flush()
 
-	val := ai.GetNextMove(&b)
-	log.Printf("Next Turn: %+v", val)
+	val := 0
 
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
+	for {
+		reader := bufio.NewReader(os.Stdin)
+		selection, _ := reader.ReadString('\n')
+		matches, err := regexp.MatchString("[0123]", strings.TrimSpace(selection))
+		if err != nil {
+			tm.Println("Invalid input")
+			tm.Flush()
+		} else if !matches {
+			tm.Println("Invalid input")
+			tm.Flush()
+		} else if val, err = strconv.Atoi(strings.TrimSpace(selection)); err != nil {
+			tm.Println("Invalid input")
+			tm.Flush()
+		} else {
+			break
+		}
+	}
 
-}
+	b := board.InitializeBoard(8)
 
-func boardA() {
-	b := board.InitializeBoard(4)
-	b.Board[1][2] = board.White
-	b.Board[3][1] = board.White
-	b.Board[2][1] = board.White
-	b.Board[2][0] = board.White
-	b.Board[3][0] = board.Black
-	tm.Clear()
-	b.DrawBoard()
-	b.Turn = 1
-	b.TurnCount = 6
-
-	val := ai.GetNextMove(&b)
-	log.Printf("Next Turn: %+v", val)
-
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
-}
-
-func boardB() {
-	b := board.InitializeBoard(4)
-	b.Board[0][3] = board.Black
-	b.Board[1][3] = board.White
-	b.Board[2][2] = board.White
-	tm.Clear()
-	b.DrawBoard()
-	b.Turn = 1
-	b.TurnCount = 6
-
-	val := ai.GetNextMove(&b)
-	log.Printf("Next Turn: %+v", val)
-
-	reader := bufio.NewReader(os.Stdin)
-	reader.ReadString('\n')
-
+	b.StartGame(val)
 }
